@@ -1,0 +1,34 @@
+{
+  "name": "@cybervett/api",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "create-admin": "node dist/scripts/create-admin.js",
+    "create-admin:dev": "tsx src/scripts/create-admin.ts"
+  },
+  "dependencies": {
+    "@cybervett/contracts": "3.0.0",
+    "@fastify/cookie": "11.1.2",
+    "@fastify/cors": "11.3.0",
+    "@fastify/helmet": "13.1.0",
+    "@fastify/jwt": "10.2.0",
+    "@fastify/rate-limit": "11.1.0",
+    "bcryptjs": "3.0.2",
+    "fastify": "5.10.0",
+    "pg": "8.22.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/pg": "8.15.6",
+    "tsx": "4.20.6",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

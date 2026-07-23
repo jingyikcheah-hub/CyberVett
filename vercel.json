@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build --workspace @cybervett/contracts && npm run build --workspace @cybervett/web",
+  "outputDirectory": "apps/web/dist",
+  "env": {
+    "VITE_PREVIEW_MODE": "true"
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

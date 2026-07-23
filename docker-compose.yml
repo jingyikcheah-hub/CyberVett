@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: cybervett
+      POSTGRES_USER: cybervett
+      POSTGRES_PASSWORD: cybervett
+    ports:
+      - "5432:5432"
+    volumes:
+      - cybervett_postgres:/var/lib/postgresql/data
+      - ./infra/postgres/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+      - ./infra/postgres/002_v3_accounts_and_followups.sql:/docker-entrypoint-initdb.d/002_v3_accounts_and_followups.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cybervett -d cybervett"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      APP_ORIGIN: http://localhost:8080
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      DATABASE_URL: postgres://cybervett:cybervett@postgres:5432/cybervett
+      DEMO_MODE: "false"
+      AI_PROVIDER: ${AI_PROVIDER:-demo}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gemini-2.5-flash}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+volumes:
+  cybervett_postgres:
