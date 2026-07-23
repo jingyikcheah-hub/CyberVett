@@ -1,6 +1,4 @@
-﻿{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
+{
   "installCommand": "npm install",
   "buildCommand": "npm run build --workspace @cybervett/contracts && npm run build --workspace @cybervett/web",
   "outputDirectory": "apps/web/dist",
