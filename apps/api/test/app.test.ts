@@ -373,8 +373,8 @@ describe('CyberVett API', () => {
     const started = await app.inject({
       method: 'POST', url: '/api/v1/public/invitations/demo-invite/start',
       payload: {
-        name: 'Jing Yik Cheah',
-        email: 'jing@example.com',
+        name: 'Candidate One',
+        email: 'candidate-one@example.com',
         consent: true,
         resumeToken: 'candidate-resume-capability-token-0000000000001',
       },
@@ -412,7 +412,7 @@ async function trainerLogin(app: FastifyInstance) {
   const response = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
-    payload: { email: 'maya@northstarlabs.test', password: 'Demo123!' },
+    payload: { email: 'maya@northstarlabs.test', password: 'Demo123!' }, // ggignore: public local demo fixture
   })
   return {
     cookie: response.cookies.find((item) => item.name === 'cybervett_session')!.value,

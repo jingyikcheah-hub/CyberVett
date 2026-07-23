@@ -3,7 +3,7 @@ x-api-build: &api-build
   dockerfile: apps/api/Dockerfile
 
 x-database-environment: &database-environment
-  DATABASE_URL: "postgres://${POSTGRES_USER:-cybervett}:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-cybervett}"
+  DATABASE_URL: "postgres://${POSTGRES_USER:-cybervett}:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-cybervett}" # ggignore: interpolation requires an external secret
   DATABASE_SSL_MODE: disable
 
 services:
@@ -12,7 +12,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cybervett}
       POSTGRES_USER: ${POSTGRES_USER:-cybervett}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env} # ggignore: interpolation requires an external secret
     expose:
       - "5432"
     volumes:
