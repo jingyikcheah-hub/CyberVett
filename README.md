@@ -15,12 +15,12 @@ The live interview is a responsive, turn-by-turn conversation. Voice controls us
 
 ## Quick start on Windows PowerShell
 
-Requirements: Node.js 22 or newer and npm 10 or newer.
+Requirements: Node.js 24 and npm 10 or newer.
 
 From the folder containing this README and the top-level `package.json`:
 
 ```powershell
-npm.cmd install
+npm.cmd ci
 npm.cmd run check
 npm.cmd run dev
 ```
@@ -43,16 +43,16 @@ The landing page also includes an invited-candidate interview preview.
 For persistent sign-up and sign-in, run PostgreSQL rather than the in-memory development store.
 
 1. Copy `.env.example` to `.env`.
-2. Replace `AUTH_SECRET` with at least 32 random characters.
+2. Replace `AUTH_SECRET` and `POSTGRES_PASSWORD`. Use a URL-safe random database password because Compose also places it in an internal connection URL.
 3. Run the complete stack:
 
 ```powershell
 docker compose up --build -d
 ```
 
-Open `http://localhost:8080` and create either account type through the registration page. PostgreSQL stores organizations, users, interview answers, follow-ups, reports, and audit events.
+Open `http://localhost:8080` and create either account type through the registration page. The web service is bound to loopback; the API and PostgreSQL are reachable only on the private Compose network.
 
-For an existing CyberVett 2.0 database, apply `infra/postgres/002_v3_accounts_and_followups.sql` before deploying 3.0. A fresh database runs both SQL files automatically through Docker Compose.
+Compose runs the checksum-verified migration service before starting the API. It handles both fresh databases and compatible existing CyberVett databases, including named volumes created by an older release. Back up an existing database before upgrading; do not apply or edit individual SQL files by hand. See `docs/DEPLOYMENT.md` for the manual migration and recovery procedure.
 
 ## AI modes
 
@@ -62,7 +62,7 @@ No subscription is needed for local use:
 AI_PROVIDER=demo
 ```
 
-Demo AI uses a deterministic interview conductor and evaluator, so the complete product remains testable offline. To use Gemini from the server:
+Demo AI is for deterministic local development and tests only. Production Compose defaults to `AI_PROVIDER=disabled`, which records an honest unavailable assessment state for human review rather than manufacturing a score. To use Gemini from the server:
 
 ```env
 AI_PROVIDER=gemini
@@ -70,7 +70,7 @@ GEMINI_API_KEY=your-server-only-key
 AI_MODEL=gemini-2.5-flash
 ```
 
-Provider failures fall back to the deterministic implementation. API keys are never sent to the browser.
+Employment-assessment provider failures produce an explicit unavailable report with no score or recommendation, preserving the submitted answers for direct human review. Deterministic scoring is limited to local demo and Trainee-practice coaching. API keys are never sent to the browser.
 
 ## Common commands
 
@@ -80,6 +80,7 @@ npm.cmd run typecheck  # Build shared contracts, then run strict checks
 npm.cmd run test       # API and interface tests
 npm.cmd run build      # Production builds
 npm.cmd run check      # Complete verification gate
+npm.cmd run migrate    # Build the API and apply pending PostgreSQL migrations
 ```
 
 To diagnose the API independently:
@@ -105,4 +106,6 @@ Security controls include HTTP-only session cookies, CSRF protection, password h
 
 ## Honest production status
 
-The repository provides a deployable foundation and complete core workflows. A public employment product still requires managed PostgreSQL, backups, transactional email, password reset/email verification, MFA or SSO where appropriate, monitoring and alerting, retention/deletion automation, accessibility testing with users, independent penetration testing, and legal review for each operating jurisdiction.
+The Docker path is a same-origin deployment foundation: Nginx serves the web app and proxies `/api` to the private API service. `vercel.json` intentionally deploys only the frontend and returns an explicit JSON 503 for `/api`; it is not a full-stack deployment.
+
+A public employment product still requires managed PostgreSQL, tested backups and restores, transactional email, password reset/email verification, MFA or SSO where appropriate, monitoring and alerting, retention/deletion automation, accessibility testing with users, independent penetration testing, and legal review for each operating jurisdiction.

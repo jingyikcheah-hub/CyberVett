@@ -11,6 +11,7 @@ const labelKeys = {
   review: 'status.review',
   shortlisted: 'status.shortlisted',
   declined: 'status.declined',
+  revoked: 'status.revoked',
 } as const satisfies Record<CandidateSummary['status'] | Job['status'], string>
 
 export function StatusBadge({ status }: { status: CandidateSummary['status'] | Job['status'] }) {

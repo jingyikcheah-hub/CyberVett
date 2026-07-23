@@ -16,7 +16,7 @@ CyberVett treats an AI-generated assessment as decision support, not an employme
 - Retention, promotion, loyalty or future productivity predictions.
 - Automatic rejection, automatic shortlisting or a final hiring recommendation.
 
-The Gemini evaluator and interview conductor repeat these boundaries in their instructions, request validated structured output, and fall back to transparent deterministic implementations if the provider is unavailable or returns invalid output. The conductor asks at most one concise follow-up for each approved core question.
+The Gemini evaluator and interview conductor repeat these boundaries in their instructions and request validated structured output. If employment-assessment output is unavailable, invalid, untraceable to the submitted answer, or violates policy, CyberVett creates an explicit no-score report for direct human review; it never substitutes deterministic keyword or answer-length scoring. The conductor may use a bounded, job-related fallback question and asks at most one follow-up for each approved core question. Deterministic scoring is restricted to local demo and Trainee-practice coaching.
 
 ## Conversational interview controls
 

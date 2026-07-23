@@ -9,6 +9,9 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:postgres": "vitest run test/postgres-store.test.ts",
+    "migrate": "node dist/scripts/migrate.js",
+    "migrate:dev": "tsx src/scripts/migrate.ts",
     "create-admin": "node dist/scripts/create-admin.js",
     "create-admin:dev": "tsx src/scripts/create-admin.ts"
   },

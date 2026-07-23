@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AppConfig } from '../config/env.js'
+import { assertProviderOutputPolicy } from './evaluator.js'
 
 export type InterviewTurnContext = {
   roleTitle: string
@@ -73,7 +74,9 @@ export class GeminiInterviewConductor implements InterviewConductor {
       const body = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
       const text = body.candidates?.[0]?.content?.parts?.[0]?.text
       if (!text) throw new Error('AI provider returned no follow-up')
-      return generatedFollowUpSchema.parse(JSON.parse(text)).followUpQuestion
+      const followUpQuestion = generatedFollowUpSchema.parse(JSON.parse(text)).followUpQuestion
+      assertProviderOutputPolicy(followUpQuestion)
+      return followUpQuestion
     } catch {
       return this.fallback.createFollowUp(context)
     }

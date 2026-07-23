@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import { assertDatabaseUrlDoesNotConfigureSsl } from './database.js'
+
+const databaseSslModeSchema = z.enum(['disable', 'require', 'verify-full'])
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -12,16 +15,33 @@ const envSchema = z.object({
   ),
   AUTH_SECRET: z.string().min(32).default('development-only-secret-change-me-now'),
   DATABASE_URL: z.string().optional(),
+  DATABASE_SSL_MODE: databaseSslModeSchema.optional(),
+  DATABASE_SSL_CA: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().trim().min(1).optional(),
+  ),
   DEMO_MODE: z.string().default('true').transform((value) => value === 'true'),
-  AI_PROVIDER: z.enum(['demo', 'gemini']).default('demo'),
+  AI_PROVIDER: z.enum(['demo', 'gemini', 'disabled']).default('demo'),
   GEMINI_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default('gemini-2.5-flash'),
 })
 
-export type AppConfig = z.infer<typeof envSchema>
+type ParsedAppConfig = z.infer<typeof envSchema>
+export type AppConfig = Omit<ParsedAppConfig, 'DATABASE_SSL_MODE'> & {
+  DATABASE_SSL_MODE: z.infer<typeof databaseSslModeSchema>
+}
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
-  const config = envSchema.parse(source)
+  const parsed = envSchema.parse(source)
+  const config: AppConfig = {
+    ...parsed,
+    DATABASE_SSL_MODE: parsed.DATABASE_SSL_MODE ?? (parsed.NODE_ENV === 'production' ? 'verify-full' : 'disable'),
+    DATABASE_SSL_CA: parsed.DATABASE_SSL_CA?.replaceAll('\\n', '\n'),
+  }
+
+  if (config.DATABASE_URL) {
+    assertDatabaseUrlDoesNotConfigureSsl(config.DATABASE_URL)
+  }
 
   if (config.NODE_ENV === 'production') {
     if (config.AUTH_SECRET.startsWith('development-only')) {
@@ -33,10 +53,21 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     if (config.DEMO_MODE) {
       throw new Error('DEMO_MODE must be false in production')
     }
+    if (config.AI_PROVIDER === 'demo') {
+      throw new Error('AI_PROVIDER=demo is not allowed in production; use gemini or disabled')
+    }
   }
 
   if (config.AI_PROVIDER === 'gemini' && !config.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is required when AI_PROVIDER=gemini')
+  }
+  if (config.DATABASE_SSL_MODE === 'verify-full') {
+    if (!config.DATABASE_SSL_CA) {
+      throw new Error('DATABASE_SSL_CA is required when DATABASE_SSL_MODE=verify-full')
+    }
+    if (!/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(config.DATABASE_SSL_CA)) {
+      throw new Error('DATABASE_SSL_CA must contain a PEM-encoded certificate')
+    }
   }
 
   return config

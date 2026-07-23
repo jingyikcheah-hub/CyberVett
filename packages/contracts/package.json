@@ -13,7 +13,8 @@
   },
   "scripts": {
     "build": "tsc -b --force",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/contracts.test.ts"
   },
   "dependencies": {
     "zod": "4.4.3"

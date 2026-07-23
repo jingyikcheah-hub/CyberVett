@@ -8,3 +8,7 @@ coverage/
 .vite/
 playwright-report/
 test-results/
+*.tsbuildinfo
+
+.vercel
+.env*

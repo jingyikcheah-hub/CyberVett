@@ -8,6 +8,7 @@ export class ApiClientError extends Error {
     message: string,
     public readonly code: string,
     public readonly status: number,
+    public readonly requestId?: string,
   ) {
     super(message)
   }
@@ -38,10 +39,20 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       payload?.error.message ?? 'The request could not be completed.',
       payload?.error.code ?? 'REQUEST_FAILED',
       response.status,
+      payload?.error.requestId ?? response.headers.get('x-request-id') ?? undefined,
     )
   }
   if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  try {
+    return await response.json() as T
+  } catch {
+    throw new ApiClientError(
+      'The API returned an invalid response. Check the deployment routing and try again.',
+      'INVALID_API_RESPONSE',
+      502,
+      response.headers.get('x-request-id') ?? undefined,
+    )
+  }
 }
 
 export async function candidateApi<T>(path: string, accessToken: string, options: RequestInit = {}): Promise<T> {

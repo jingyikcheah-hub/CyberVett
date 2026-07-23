@@ -1,5 +1,5 @@
 import { ArrowRight, Bot, CheckCircle2, GraduationCap, LogOut, Mic, ShieldCheck, Sparkles, Volume2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
 import { useAuth } from '../context/AuthContext'
@@ -103,7 +103,18 @@ export function PracticePage() {
   const [feedback, setFeedback] = useState<PracticeFeedback | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const answerRef = useRef<HTMLTextAreaElement>(null)
   const question = questions[index]
+
+  useEffect(() => {
+    if (started && !feedback) answerRef.current?.focus()
+  }, [feedback, index, phase, started])
+
+  useEffect(() => () => {
+    try { recognitionRef.current?.stop() } catch { /* Already stopped. */ }
+  }, [])
 
   async function submitTurn() {
     if (!question || draft.trim().length < 20) { setError(t('interview.min')); return }
@@ -140,7 +151,10 @@ export function PracticePage() {
   }
 
   function speak(text: string) {
-    if (!('speechSynthesis' in window)) return
+    if (!('speechSynthesis' in window)) {
+      setError(t('interview.readUnavailable'))
+      return
+    }
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = localeTag
@@ -148,15 +162,42 @@ export function PracticePage() {
   }
 
   function dictate() {
-    const Recognition = (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition
-      ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition
+    if (listening) {
+      try { recognitionRef.current?.stop() } catch { /* Already stopped. */ }
+      return
+    }
+    const policy = document as Document & {
+      permissionsPolicy?: { allowsFeature(name: string): boolean }
+      featurePolicy?: { allowsFeature(name: string): boolean }
+    }
+    if ((policy.permissionsPolicy ?? policy.featurePolicy)?.allowsFeature('microphone') === false) {
+      setError(t('interview.voicePolicyBlocked'))
+      return
+    }
+    const Recognition = (window as SpeechWindow).SpeechRecognition
+      ?? (window as SpeechWindow).webkitSpeechRecognition
     if (!Recognition) { setError(t('practice.voiceUnavailable')); return }
-    const recognition = new Recognition()
-    recognition.lang = localeTag
-    recognition.interimResults = false
-    recognition.onresult = (event) => setDraft((current) => `${current}${current ? ' ' : ''}${event.results[0]?.[0]?.transcript ?? ''}`)
-    recognition.onerror = () => setError(t('practice.voiceUnavailable'))
-    recognition.start()
+    try {
+      const recognition = new Recognition()
+      recognition.lang = localeTag
+      recognition.interimResults = false
+      recognition.onstart = () => setListening(true)
+      recognition.onend = () => setListening(false)
+      recognition.onresult = (event) => setDraft((current) => `${current}${current ? ' ' : ''}${event.results[0]?.[0]?.transcript ?? ''}`)
+      recognition.onerror = (event) => {
+        setListening(false)
+        setError(event.error === 'not-allowed' || event.error === 'service-not-allowed'
+          ? t('interview.voiceDenied')
+          : event.error === 'network'
+            ? t('interview.voiceNetwork')
+            : t('practice.voiceUnavailable'))
+      }
+      recognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setListening(false)
+      setError(t('practice.voiceUnavailable'))
+    }
   }
 
   function restart() {
@@ -177,11 +218,12 @@ export function PracticePage() {
         <main className="practice-feedback"><span className="eyebrow">{t('practice.feedbackEyebrow')}</span><h1>{t('practice.feedbackTitle')}</h1><div className="feedback-score"><strong>{feedback.overallScore}</strong><span>/100<br />{t('practice.evidenceScore')}</span></div><p className="feedback-summary">{feedback.summary}</p><div className="feedback-grid"><section><h2>{t('practice.strengths')}</h2><ul>{feedback.strengths.length ? feedback.strengths.map((item) => <li key={item}>{item}</li>) : <li>{t('practice.noStrengths')}</li>}</ul></section><section><h2>{t('practice.improve')}</h2><ul>{feedback.developmentAreas.length ? feedback.developmentAreas.map((item) => <li key={item}>{item}</li>) : <li>{t('practice.keepPractising')}</li>}</ul></section></div><p className="advisory-note"><ShieldCheck /> {t('practice.advisory')}</p><button className="button button-primary" onClick={restart}>{t('practice.again')}</button></main>
       ) : (
         <main className="live-interview-shell">
+          <h1 className="sr-only">{t('practice.interviewer')} — {roleTitle}</h1>
           <aside className="live-progress"><span className="live-status"><i /> {t('practice.live')}</span><h2>{roleTitle}</h2><p>{t('interview.progress', { current: index + 1, total: questions.length })}</p><div className="progress-track"><i style={{ width: `${((index + 1) / questions.length) * 100}%` }} /></div><ol>{questions.map((item, itemIndex) => <li key={item.questionId} className={itemIndex === index ? 'current' : itemIndex < index ? 'complete' : ''}><span>{itemIndex < index ? <CheckCircle2 /> : itemIndex + 1}</span>{item.competency}</li>)}</ol><div className="interview-trust"><ShieldCheck /><p><strong>{t('interview.trustTitle')}</strong><span>{t('interview.trustCopy')}</span></p></div></aside>
           <section className="conversation-card">
             <div className="conversation-heading"><span className="ai-avatar"><Bot /></span><div><strong>{t('practice.interviewer')}</strong><small>{t('practice.jobRelated')}</small></div></div>
             <div className="chat-thread"><article className="chat-message assistant"><span>{question?.competency}</span><p>{question?.question}</p><button className="speak-button" onClick={() => speak(question?.question ?? '')}><Volume2 /> {t('practice.readAloud')}</button></article>{phase === 'follow_up' && <><article className="chat-message candidate"><span>{t('practice.you')}</span><p>{turns.find((turn) => turn.questionId === question?.questionId)?.answer}</p></article><article className="chat-message assistant follow-up"><span>{t('practice.followUp')}</span><p>{followUpPrompt}</p><button className="speak-button" onClick={() => speak(followUpPrompt)}><Volume2 /> {t('practice.readAloud')}</button></article></>}</div>
-            <label className="answer-field">{phase === 'primary' ? t('interview.answer') : t('practice.followUpAnswer')}<textarea rows={7} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={t('interview.placeholder')} autoFocus /><small>{t('interview.characterCount', { count: draft.trim().length })}</small></label><div className="voice-note"><button type="button" className="button button-secondary" onClick={dictate}><Mic /> {t('practice.dictate')}</button><span>{t('practice.voicePrivacy')}</span></div>{error && <div className="form-error" role="alert">{error}</div>}<div className="conversation-actions"><button className="button button-primary" disabled={busy} onClick={() => void submitTurn()}>{busy ? t('practice.thinking') : phase === 'primary' ? t('practice.answer') : index === questions.length - 1 ? t('practice.finish') : t('practice.continue')} <ArrowRight /></button></div>
+            <label className="answer-field">{phase === 'primary' ? t('interview.answer') : t('practice.followUpAnswer')}<textarea ref={answerRef} rows={7} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={t('interview.placeholder')} /><small>{t('interview.characterCount', { count: draft.trim().length })}</small></label><div className="voice-note"><button type="button" className="button button-secondary" aria-pressed={listening} onClick={dictate}><Mic /> {listening ? t('interview.stopDictation') : t('practice.dictate')}</button><span>{t('interview.voicePrivacyRemote')}</span></div>{error && <div className="form-error" role="alert">{error}</div>}<div className="conversation-actions"><button className="button button-primary" disabled={busy} onClick={() => void submitTurn()}>{busy ? t('practice.thinking') : phase === 'primary' ? t('practice.answer') : index === questions.length - 1 ? t('practice.finish') : t('practice.continue')} <ArrowRight /></button></div>
           </section>
         </main>
       )}
@@ -192,7 +234,15 @@ export function PracticePage() {
 type SpeechRecognitionLike = {
   lang: string
   interimResults: boolean
+  onstart: () => void
+  onend: () => void
   onresult: (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void
-  onerror: () => void
+  onerror: (event: { error: string }) => void
   start(): void
+  stop(): void
+}
+
+type SpeechWindow = Window & typeof globalThis & {
+  SpeechRecognition?: new () => SpeechRecognitionLike
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike
 }

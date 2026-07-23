@@ -2,6 +2,7 @@ import { Navigate, Outlet, createBrowserRouter, useLocation } from 'react-router
 import { AppShell } from './components/AppShell'
 import { LoadingState } from './components/LoadingState'
 import { useAuth } from './context/AuthContext'
+import { useLocale } from './context/LocaleContext'
 import { CandidatesPage } from './pages/CandidatesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { InterviewPage } from './pages/InterviewPage'
@@ -16,21 +17,30 @@ import { RegisterPage } from './pages/RegisterPage'
 import { ReportPage } from './pages/ReportPage'
 
 function TrainerLayout() {
-  const { user, loading } = useAuth()
+  const { user, loading, unavailable, retrySession } = useAuth()
   const location = useLocation()
-  if (loading) return <LoadingState label="Restoring your workspace…" />
+  const { t } = useLocale()
+  if (loading) return <LoadingState label={t('auth.restoring')} />
+  if (unavailable) return <AuthUnavailable retry={() => void retrySession()} />
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
   if (user.mode !== 'trainer') return <Navigate to="/practice" replace />
   return <Outlet />
 }
 
 function TraineeRoute() {
-  const { user, loading } = useAuth()
+  const { user, loading, unavailable, retrySession } = useAuth()
   const location = useLocation()
-  if (loading) return <LoadingState label="Restoring your workspace…" />
+  const { t } = useLocale()
+  if (loading) return <LoadingState label={t('auth.restoring')} />
+  if (unavailable) return <AuthUnavailable retry={() => void retrySession()} />
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
   if (user.mode !== 'trainee') return <Navigate to="/app" replace />
   return <PracticePage />
+}
+
+function AuthUnavailable({ retry }: { retry(): void }) {
+  const { t } = useLocale()
+  return <main className="candidate-page centered-message"><h1>{t('auth.unavailable')}</h1><p>{t('auth.unavailableCopy')}</p><button className="button button-primary" onClick={retry}>{t('common.retry')}</button></main>
 }
 
 export const router = createBrowserRouter([

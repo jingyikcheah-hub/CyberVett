@@ -1,8 +1,52 @@
 {
-  "installCommand": "npm install",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci",
   "buildCommand": "npm run build --workspace @cybervett/contracts && npm run build --workspace @cybervett/web",
   "outputDirectory": "apps/web/dist",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(self), geolocation=()"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/unavailable"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

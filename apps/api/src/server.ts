@@ -1,7 +1,7 @@
 import { loadEnvFile } from 'node:process'
 import { buildApp } from './app.js'
 import { loadConfig } from './config/env.js'
-import { createEvaluator } from './services/evaluator.js'
+import { createEvaluator, StructuredEvaluator } from './services/evaluator.js'
 import { createInterviewConductor } from './services/interview-conductor.js'
 import { MemoryStore } from './store/memory-store.js'
 import { PostgresStore } from './store/postgres-store.js'
@@ -11,7 +11,7 @@ try { loadEnvFile(new URL('../../../.env', import.meta.url)) } catch { /* Enviro
 const config = loadConfig()
 const store = config.DEMO_MODE
   ? new MemoryStore()
-  : new PostgresStore(config.DATABASE_URL!)
+  : new PostgresStore(config.DATABASE_URL!, config.DATABASE_SSL_MODE, config.DATABASE_SSL_CA)
 
 if (store instanceof MemoryStore) await store.initialize()
 
@@ -19,6 +19,7 @@ const app = await buildApp({
   config,
   store,
   evaluator: createEvaluator(config),
+  practiceEvaluator: new StructuredEvaluator(),
   conductor: createInterviewConductor(config),
 })
 

@@ -1,47 +1,61 @@
+x-api-build: &api-build
+  context: .
+  dockerfile: apps/api/Dockerfile
+
+x-database-environment: &database-environment
+  DATABASE_URL: "postgres://${POSTGRES_USER:-cybervett}:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-cybervett}"
+  DATABASE_SSL_MODE: disable
+
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: cybervett
-      POSTGRES_USER: cybervett
-      POSTGRES_PASSWORD: cybervett
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-cybervett}
+      POSTGRES_USER: ${POSTGRES_USER:-cybervett}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env}
+    expose:
+      - "5432"
     volumes:
       - cybervett_postgres:/var/lib/postgresql/data
-      - ./infra/postgres/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
-      - ./infra/postgres/002_v3_accounts_and_followups.sql:/docker-entrypoint-initdb.d/002_v3_accounts_and_followups.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cybervett -d cybervett"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+  migrate:
+    image: cybervett-api:local
+    build: *api-build
+    command: ["node", "apps/api/dist/scripts/migrate.js"]
     environment:
+      <<: *database-environment
       NODE_ENV: production
-      PORT: 4000
-      HOST: 0.0.0.0
-      APP_ORIGIN: http://localhost:8080
-      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
-      DATABASE_URL: postgres://cybervett:cybervett@postgres:5432/cybervett
-      DEMO_MODE: "false"
-      AI_PROVIDER: ${AI_PROVIDER:-demo}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-gemini-2.5-flash}
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "4000:4000"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
+    restart: "no"
+
+  api:
+    image: cybervett-api:local
+    build: *api-build
+    environment:
+      <<: *database-environment
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      DEMO_MODE: "false"
+      AI_PROVIDER: ${AI_PROVIDER:-disabled}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gemini-2.5-flash}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "4000"
+    restart: unless-stopped
 
   web:
     build:
@@ -53,7 +67,8 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    restart: unless-stopped
 
 volumes:
   cybervett_postgres:

@@ -16,13 +16,36 @@ export const userSchema = z.object({
 })
 export type User = z.infer<typeof userSchema>
 
+export const questionIdSchema = z.string()
+  .trim()
+  .min(1, 'Question IDs cannot be empty.')
+  .max(80, 'Question IDs must be 80 characters or fewer.')
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9_-]*$/,
+    'Question IDs must start with a letter or number and contain only letters, numbers, underscores, or hyphens.',
+  )
+
 export const questionSchema = z.object({
-  id: z.string(),
-  prompt: z.string().min(10).max(1200),
-  competency: z.string().min(2).max(80),
-  guidance: z.string().max(400).optional(),
+  id: questionIdSchema,
+  prompt: z.string().trim().min(10).max(1200),
+  competency: z.string().trim().min(2).max(80),
+  guidance: z.string().trim().min(1).max(400).optional(),
 })
 export type Question = z.infer<typeof questionSchema>
+
+const jobQuestionsSchema = z.array(questionSchema).min(3).max(12).superRefine((questions, context) => {
+  const seen = new Set<string>()
+  questions.forEach((question, index) => {
+    if (seen.has(question.id)) {
+      context.addIssue({
+        code: 'custom',
+        path: [index, 'id'],
+        message: 'Question IDs must be unique within a job.',
+      })
+    }
+    seen.add(question.id)
+  })
+})
 
 export const jobStatusSchema = z.enum(['draft', 'active', 'closed'])
 export const jobSchema = z.object({
@@ -32,7 +55,7 @@ export const jobSchema = z.object({
   location: z.string(),
   status: jobStatusSchema,
   durationMinutes: z.number().int().min(10).max(120),
-  questions: z.array(questionSchema),
+  questions: jobQuestionsSchema,
   createdAt: z.string(),
   candidateCount: z.number().int().nonnegative(),
 })
@@ -45,6 +68,7 @@ export const candidateStatusSchema = z.enum([
   'review',
   'shortlisted',
   'declined',
+  'revoked',
 ])
 
 export const candidateSummarySchema = z.object({
@@ -64,7 +88,7 @@ export const dashboardSchema = z.object({
   activeJobs: z.number().int().nonnegative(),
   awaitingReview: z.number().int().nonnegative(),
   completedThisWeek: z.number().int().nonnegative(),
-  medianScore: z.number().int().min(0).max(100).nullable(),
+  medianScore: z.number().finite().min(0).max(100).nullable(),
   jobs: z.array(jobSchema),
   candidates: z.array(candidateSummarySchema),
 })
@@ -75,7 +99,7 @@ export const createJobSchema = z.object({
   department: z.string().trim().min(2).max(100),
   location: z.string().trim().min(2).max(120),
   durationMinutes: z.number().int().min(10).max(120),
-  questions: z.array(questionSchema).min(3).max(12),
+  questions: jobQuestionsSchema,
 })
 export type CreateJobInput = z.infer<typeof createJobSchema>
 
@@ -107,16 +131,17 @@ export const startInterviewSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().email(),
   consent: z.literal(true),
+  resumeToken: z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),
 })
 
 export const answerSchema = z.object({
-  questionId: z.string().min(1),
+  questionId: questionIdSchema,
   answer: z.string().trim().min(20).max(10000),
   locale: z.enum(['en', 'ms', 'zh-CN']).default('en'),
 })
 
 export const followUpAnswerSchema = z.object({
-  questionId: z.string().min(1),
+  questionId: questionIdSchema,
   answer: z.string().trim().min(20).max(10000),
 })
 
@@ -125,7 +150,7 @@ export const completeInterviewSchema = z.object({
 })
 
 export const practiceTurnSchema = z.object({
-  questionId: z.string().min(1).max(80),
+  questionId: questionIdSchema,
   competency: z.string().trim().min(2).max(80),
   question: z.string().trim().min(10).max(1200),
   answer: z.string().trim().min(20).max(10000),
@@ -154,30 +179,75 @@ export const decisionSchema = z.object({
 })
 
 export const dimensionScoreSchema = z.object({
-  name: z.string(),
+  name: z.string().trim().min(2).max(80),
   score: z.number().int().min(0).max(100),
-  evidence: z.array(z.string()),
+  evidence: z.array(z.string().trim().min(5).max(300)).min(1).max(3),
 })
 
-export const reportSchema = z.object({
-  id: z.string().uuid(),
-  candidate: candidateSummarySchema,
-  overallScore: z.number().int().min(0).max(100),
-  recommendation: z.enum(['strong_evidence', 'mixed_evidence', 'limited_evidence']),
-  summary: z.string(),
+export const assessmentStatusSchema = z.enum(['available', 'unavailable'])
+export type AssessmentStatus = z.infer<typeof assessmentStatusSchema>
+
+export const recommendationSchema = z.enum(['strong_evidence', 'mixed_evidence', 'limited_evidence'])
+export type Recommendation = z.infer<typeof recommendationSchema>
+
+export const assessmentAnswerSchema = z.object({
+  question: z.string(),
+  answer: z.string(),
+  competency: z.string(),
+})
+
+const assessmentCommonShape = {
+  summary: z.string().min(20).max(1200),
   dimensions: z.array(dimensionScoreSchema),
-  strengths: z.array(z.string()),
-  developmentAreas: z.array(z.string()),
-  answers: z.array(z.object({
-    question: z.string(),
-    answer: z.string(),
-    competency: z.string(),
-  })),
-  reviewerNote: z.string().nullable(),
+  strengths: z.array(z.string().trim().min(2).max(300)).max(5),
+  developmentAreas: z.array(z.string().trim().min(2).max(300)).max(5),
+  answers: z.array(assessmentAnswerSchema),
   generatedBy: z.string(),
   generatedAt: z.string(),
+} satisfies z.ZodRawShape
+
+export const availableEvaluationResultSchema = z.object({
+  assessmentStatus: z.literal('available'),
+  overallScore: z.number().int().min(0).max(100),
+  recommendation: recommendationSchema,
+  ...assessmentCommonShape,
 })
-export type Report = z.infer<typeof reportSchema>
+
+export const unavailableEvaluationResultSchema = z.object({
+  assessmentStatus: z.literal('unavailable'),
+  overallScore: z.null(),
+  recommendation: z.null(),
+  ...assessmentCommonShape,
+  dimensions: z.array(dimensionScoreSchema).max(0),
+  strengths: z.array(z.string()).max(0),
+  developmentAreas: z.array(z.string()).max(0),
+})
+
+export const evaluationResultSchema = z.discriminatedUnion('assessmentStatus', [
+  availableEvaluationResultSchema,
+  unavailableEvaluationResultSchema,
+])
+export type EvaluationResult = z.infer<typeof evaluationResultSchema>
+
+const reportIdentityShape = {
+  id: z.string().uuid(),
+  candidate: candidateSummarySchema,
+  reviewerNote: z.string().nullable(),
+} satisfies z.ZodRawShape
+
+const availableReportSchema = availableEvaluationResultSchema
+  .omit({ assessmentStatus: true })
+  .extend({
+    assessmentStatus: z.literal('available').default('available'),
+    ...reportIdentityShape,
+  })
+
+const unavailableReportSchema = unavailableEvaluationResultSchema.extend(reportIdentityShape)
+
+export const reportSchema = z.union([availableReportSchema, unavailableReportSchema])
+
+export type ReportInput = z.input<typeof reportSchema>
+export type Report = z.output<typeof reportSchema>
 
 export type ApiError = {
   error: {
