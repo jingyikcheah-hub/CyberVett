@@ -1,4 +1,4 @@
-import { Download, Github, Info } from 'lucide-react'
+﻿import { Download, Info } from 'lucide-react'
 import { PREVIEW_MODE } from '../lib/api'
 
 const REPOSITORY_URL = 'https://github.com/jingyikcheah-hub/CyberVett'
@@ -14,9 +14,10 @@ export function PreviewNotice() {
         <span><strong>UI preview only.</strong> No live backend, database, real authentication, or Gemini API is connected.</span>
       </div>
       <div className="preview-notice-actions">
-        <a href={REPOSITORY_URL} target="_blank" rel="noreferrer"><Github size={15} /> Repository</a>
+        <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">Repository</a>
         <a href={ZIP_URL}><Download size={15} /> Download ZIP</a>
       </div>
     </aside>
   )
 }
+
